@@ -1,5 +1,6 @@
 build/
 .tools/
+artifacts/
 *.exe
 *.obj
 *.lst

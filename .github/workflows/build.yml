@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
   windows:
     runs-on: windows-latest
@@ -11,12 +14,63 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
       - name: Build
         shell: pwsh
         run: ./build.ps1
+
+      - name: Install smoke test dependencies
+        shell: pwsh
+        run: python -m pip install --upgrade pywinpty pillow
+
+      - name: Run smoke test
+        shell: pwsh
+        run: python scripts/smoke_test.py
 
       - name: Upload executable
         uses: actions/upload-artifact@v4
         with:
           name: asm-snake-windows-x64
           path: build/asm-snake.exe
+
+      - name: Upload smoke screen
+        uses: actions/upload-artifact@v4
+        with:
+          name: asm-snake-smoke-screen
+          path: |
+            artifacts/smoke-screen.png
+            artifacts/smoke-screen.txt
+            artifacts/smoke-raw.log
+
+      - name: Publish latest release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "latest"
+          gh release delete $tag --yes --cleanup-tag 2>$null
+          if ($LASTEXITCODE -ne 0) {
+              Write-Host "No existing latest release to replace."
+          }
+
+          git push origin ":refs/tags/$tag" 2>$null
+          if ($LASTEXITCODE -ne 0) {
+              Write-Host "No existing latest tag to replace."
+          }
+
+          gh release create $tag `
+              "build/asm-snake.exe#asm-snake.exe" `
+              "artifacts/smoke-screen.png#smoke-screen.png" `
+              --target "${{ github.sha }}" `
+              --title "Latest Windows build" `
+              --notes "Automated release for commit ${{ github.sha }}." `
+              --latest
+
+          if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+          }

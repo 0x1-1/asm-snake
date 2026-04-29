@@ -23,7 +23,7 @@ build so the game can produce a `.exe` without Visual Studio, MASM, or Irvine32.
   - `-` trim: small score and shorter tail
 - Level-based speed scaling
 - Colored board, snake, food, HUD, and game-over state
-- Windows GitHub Actions build workflow
+- Windows GitHub Actions build, smoke test, and automatic latest release workflow
 
 ## Build
 
@@ -67,6 +67,7 @@ To require a preinstalled assembler and skip the automatic download:
 ```text
 snake.asm                  Game source
 build.ps1                  Local Windows build script
+scripts/smoke_test.py      Automated gameplay smoke test and screen capture
 .github/workflows/build.yml CI build workflow
 .editorconfig              Editor defaults
 .gitignore                 Build and local-tool ignores

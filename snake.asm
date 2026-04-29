@@ -58,15 +58,24 @@ start:
         mov     [hOut], rax
 
         call    HideCursor
+        call    DetectSmokeMode
         call    Randomize
         call    LoadHighScore
 
 .menu:
         call    ShowTitle
+
+        cmp     byte [smokeMode], 1
+        jne     .readMenu
+        mov     al, 2
+        jmp     .startGame
+
+.readMenu:
         call    ReadMenuKey
         cmp     al, 0
         je      .exit
 
+.startGame:
         mov     [difficulty], al
         call    NewGame
         call    GameLoop
@@ -99,6 +108,14 @@ proc GameLoop
         cmp     byte [gameOver], 1
         je      .gameOver
 
+        cmp     byte [smokeMode], 1
+        jne     .sleep
+        dec     dword [smokeTicks]
+        jnz     .sleep
+        mov     byte [quitGame], 1
+        jmp     .done
+
+.sleep:
         mov     eax, [tickDelay]
         invoke  Sleep, eax
         jmp     .loop
@@ -171,10 +188,27 @@ proc NewGame
         mov     dword [obstacleTarget], 22
 
 .obstacles:
+        cmp     byte [smokeMode], 1
+        jne     .build
+        mov     dword [obstacleTarget], 0
+
+.build:
         call    BuildObstacles
         call    SpawnFood
         call    UpdateLevelAndSpeed
         call    RenderGame
+        ret
+endp
+
+proc DetectSmokeMode
+        mov     byte [smokeMode], 0
+        mov     dword [smokeTicks], 16
+        invoke  GetEnvironmentVariableA, addr smokeEnvName, addr smokeEnvValue, 8
+        test    eax, eax
+        jz      .done
+        mov     byte [smokeMode], 1
+
+.done:
         ret
 endp
 
@@ -732,6 +766,12 @@ proc IsCellObstacle uses rsi
 endp
 
 proc Randomize
+        cmp     byte [smokeMode], 1
+        jne     .tickSeed
+        mov     dword [rngState], 2463534242
+        ret
+
+.tickSeed:
         invoke  GetTickCount
         test    eax, eax
         jnz     .store
@@ -788,7 +828,11 @@ proc RenderGame uses rbx
         add     ebx, BOARD_Y
         movzx   ecx, byte [cellChar]
         mov     edx, [cellColor]
-        fastcall WriteCharAt, eax, ebx, ecx, edx
+        mov     [charX], eax
+        mov     [charY], ebx
+        mov     [charCode], ecx
+        mov     [charColor], edx
+        fastcall WriteCharAt, [charX], [charY], [charCode], [charColor]
 
         inc     dword [drawX]
         jmp     .col
@@ -1041,39 +1085,49 @@ proc SaveHighScore
 endp
 
 proc WriteCharAt uses rbx, xPos, yPos, chValue, colorValue
-        mov     eax, dword [yPos]
+        mov     [writeColor], r9d
+        mov     [charBuffer], r8b
+
+        mov     eax, edx
         shl     eax, 16
-        mov     ebx, dword [xPos]
+        mov     ebx, ecx
         and     ebx, 0FFFFh
         or      eax, ebx
+        mov     [writeCoord], eax
 
-        invoke  SetConsoleCursorPosition, [hOut], eax
-        invoke  SetConsoleTextAttribute, [hOut], dword [colorValue]
+        invoke  SetConsoleCursorPosition, [hOut], [writeCoord]
+        invoke  SetConsoleTextAttribute, [hOut], [writeColor]
 
-        mov     eax, dword [chValue]
-        mov     [charBuffer], al
         invoke  WriteConsoleA, [hOut], addr charBuffer, 1, addr bytesDone, 0
         ret
 endp
 
 proc WriteStringAt uses rbx, xPos, yPos, textPtr, colorValue
-        mov     eax, dword [yPos]
+        mov     [writePtr], r8
+        mov     [writeColor], r9d
+
+        mov     eax, edx
         shl     eax, 16
-        mov     ebx, dword [xPos]
+        mov     ebx, ecx
         and     ebx, 0FFFFh
         or      eax, ebx
+        mov     [writeCoord], eax
 
-        invoke  SetConsoleCursorPosition, [hOut], eax
-        invoke  SetConsoleTextAttribute, [hOut], dword [colorValue]
-        fastcall StrLen, qword [textPtr]
-        invoke  WriteConsoleA, [hOut], qword [textPtr], eax, addr bytesDone, 0
+        invoke  SetConsoleCursorPosition, [hOut], [writeCoord]
+        invoke  SetConsoleTextAttribute, [hOut], [writeColor]
+        fastcall StrLen, [writePtr]
+        invoke  WriteConsoleA, [hOut], [writePtr], eax, addr bytesDone, 0
         ret
 endp
 
 proc WriteUIntAt uses rbx rdi, xPos, yPos, value, colorValue
+        mov     [uintX], ecx
+        mov     [uintY], edx
+        mov     [uintColor], r9d
+
         lea     rdi, [numberBuffer + 15]
         mov     byte [rdi], 0
-        mov     eax, dword [value]
+        mov     eax, r8d
         cmp     eax, 0
         jne     .digits
 
@@ -1094,12 +1148,12 @@ proc WriteUIntAt uses rbx rdi, xPos, yPos, value, colorValue
         jne     .digitLoop
 
 .write:
-        fastcall WriteStringAt, dword [xPos], dword [yPos], rdi, dword [colorValue]
+        fastcall WriteStringAt, [uintX], [uintY], rdi, [uintColor]
         ret
 endp
 
 proc StrLen uses rdi, textPtr
-        mov     rdi, qword [textPtr]
+        mov     rdi, rcx
         xor     eax, eax
 
 .loop:
@@ -1147,6 +1201,8 @@ newRecordText db 'New high score!', 0
 gameOverPrompt db 'Enter/R restart, M menu, Q quit', 0
 
 saveFileName db 'asm-snake.sav', 0
+smokeEnvName db 'ASM_SNAKE_SMOKE', 0
+smokeEnvValue rb 8
 blankLine db 100 dup(' '), 0
 hudBlank db 40 dup(' '), 0
 
@@ -1166,8 +1222,10 @@ snakeLen dd 5
 obstacleCount dd 0
 obstacleTarget dd 14
 growAmount dd 0
+smokeTicks dd 16
 
 difficulty db 2
+smokeMode db 0
 direction db DIR_RIGHT
 nextDirection db DIR_RIGHT
 paused db 0
@@ -1189,6 +1247,16 @@ cellChar db ' '
 cellColor dd COLOR_DEFAULT
 charBuffer db ' '
 numberBuffer rb 16
+charX dd 0
+charY dd 0
+charCode dd 0
+charColor dd COLOR_DEFAULT
+writeCoord dd 0
+writeColor dd COLOR_DEFAULT
+writePtr dq 0
+uintX dd 0
+uintY dd 0
+uintColor dd COLOR_DEFAULT
 
 drawX dd 0
 drawY dd 0
