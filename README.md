@@ -1,37 +1,82 @@
-# Assembly Snake Game
+# ASM Snake
 
-A classic Snake game implemented in x86 Assembly language. This project demonstrates low-level programming concepts and game development using assembly language.
+A Windows x64 console Snake game written in assembly and built with
+[flat assembler](https://flatassembler.net/).
+
+The original Irvine32/MASM prototype has been replaced with a standalone FASM
+build so the game can produce a `.exe` without Visual Studio, MASM, or Irvine32.
 
 ## Features
-- Classic snake gameplay
-- Score tracking
-- Adjustable game speed
-- Wall collision detection
-- Food collection mechanics
 
-## Requirements
-- MASM (Microsoft Macro Assembler)
-- Irvine32 library
-- Windows operating system
+- Windows x64 console executable generated directly from `snake.asm`
+- Difficulty selection: Easy, Normal, Hard
+- WASD and arrow-key movement
+- Pause, restart, menu, and quit controls
+- Persistent high score saved in `asm-snake.sav`
+- Self, wall, and obstacle collision
+- Random obstacle placement per run
+- Five food types:
+  - `*` apple: score and grow
+  - `$` bonus: larger score and double growth
+  - `+` slow: score and slower pace
+  - `!` rush: score and faster pace
+  - `-` trim: small score and shorter tail
+- Level-based speed scaling
+- Colored board, snake, food, HUD, and game-over state
+- Windows GitHub Actions build workflow
 
-## How to Run
-1. Make sure you have MASM and Irvine32 library installed
-2. Assemble the code using MASM
-3. Link the object file
-4. Run the executable
+## Build
+
+From PowerShell:
+
+```powershell
+./build.ps1
+```
+
+The script looks for `fasm.exe` on `PATH`. If it is not available, it downloads
+the portable Windows FASM package into `.tools/` and builds:
+
+```text
+build/asm-snake.exe
+```
+
+To require a preinstalled assembler and skip the automatic download:
+
+```powershell
+./build.ps1 -NoBootstrap
+```
+
+## Run
+
+```powershell
+./build/asm-snake.exe
+```
 
 ## Controls
-- W: Move Up
-- S: Move Down
-- A: Move Left
-- D: Move Right
-- X: Exit Game
 
-## About
-This project was developed by me as a tribute to Ali Kutluözen, who is a big fan of classic games. The game was developed using Irvine32 library in about 2 hours.
+| Key | Action |
+| --- | --- |
+| `WASD` / arrows | Move |
+| `P` | Pause or resume |
+| `R` | Restart |
+| `M` | Return to menu |
+| `Q` / `Esc` | Quit |
 
-## Special Thanks
-Special thanks to Ali Kutluözen for the inspiration. You can follow him on:
+## Repository Layout
+
+```text
+snake.asm                  Game source
+build.ps1                  Local Windows build script
+.github/workflows/build.yml CI build workflow
+.editorconfig              Editor defaults
+.gitignore                 Build and local-tool ignores
+```
+
+## Acknowledgements
+
+This project is dedicated to Ali Kutluözen, whose love of classic games inspired
+the original version.
+
 - [YouTube](https://www.youtube.com/c/alikutluozen)
 - [LinkedIn](https://www.linkedin.com/in/alikutluozen)
 - [Instagram](https://www.instagram.com/alikutluozen/?hl=en)
